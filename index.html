@@ -1,110 +1,107 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ghost Chat | Golbazar</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost Chat v2</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --bg: #000; --card: #111; --primary: #0000FF; --success: #00FF00; --danger: #FF0000; --text: #fff; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .app-container { width: 95%; max-width: 400px; height: 90vh; background: var(--card); border: 2px solid var(--primary); border-radius: 15px; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
-        input { width: 100%; padding: 12px; margin: 8px 0; background: #000; border: 1px solid var(--primary); color: white; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 5px; }
-        .btn-green { background: var(--success); color: #000; }
-        .btn-blue { background: var(--primary); color: #fff; }
-        .btn-red { background: var(--danger); color: #fff; }
-        #chat-box { flex-grow: 1; border: 1px solid #222; background: #050505; overflow-y: auto; margin-bottom: 10px; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; }
-        .msg { margin-bottom: 8px; word-wrap: break-word; }
-        .msg-me { color: var(--success); align-self: flex-end; }
-        .msg-them { color: var(--primary); align-self: flex-start; }
-        .section { display: none; flex-direction: column; height: 100%; }
-        .active { display: flex; }
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; margin: 0; }
+        .box { border: 1px solid #00f; height: 90vh; display: flex; flex-direction: column; padding: 10px; box-sizing: border-box; }
+        #msgs { flex-grow: 1; overflow-y: auto; border: 1px solid #222; margin: 10px 0; display: flex; flex-direction: column; }
+        input { background: #000; border: 1px solid #00f; color: #0f0; padding: 12px; width: 100%; box-sizing: border-box; outline: none; }
+        button { padding: 12px; margin-top: 5px; cursor: pointer; width: 100%; border: none; font-weight: bold; }
+        .hidden { display: none; }
+        .m { margin: 5px; padding: 8px; border-radius: 5px; max-width: 80%; word-wrap: break-word; }
+        .me { color: #fff; background: #00f; align-self: flex-end; }
+        .them { color: #000; background: #0f0; align-self: flex-start; }
     </style>
 </head>
 <body>
-<div class="app-container">
-    <h2 style="text-align:center; color:var(--success)">GHOST CHAT</h2>
-    <div id="auth-section" class="section active">
-        <input type="text" id="username" placeholder="Username">
-        <input type="password" id="password" placeholder="Password">
-        <button class="btn-green" onclick="handleAuth()">Login / Register</button>
+    <div id="view-login">
+        <h3>GHOST_SYSTEM LOGIN</h3>
+        <input type="text" id="uid" placeholder="Enter Username">
+        <button onclick="start()" style="background:#00f; color:#fff">INITIALIZE</button>
     </div>
-    <div id="request-section" class="section">
-        <p style="text-align:center">Logged in as: <span id="my-name" style="color:var(--success)"></span></p>
-        <input type="text" id="friend-username" placeholder="Friend's Username">
-        <button class="btn-blue" onclick="sendRequest()">Connect</button>
-        <div id="incoming-notif" style="display:none; margin-top:20px; border:1px dashed var(--success); padding:10px; text-align:center;">
-            <p id="request-text"></p>
-            <button class="btn-green" onclick="acceptRequest()">Accept & Chat</button>
+
+    <div id="view-conn" class="hidden">
+        <p>ID: <span id="myid" style="color:#fff"></span></p>
+        <input type="text" id="fid" placeholder="Target ID">
+        <button onclick="connect()" style="background:#00f; color:#fff">CONNECT</button>
+        <div id="notif" class="hidden" style="border:1px dashed #0f0; margin-top:20px; padding:10px;">
+            <p id="ntxt"></p>
+            <button onclick="accept()" style="background:#0f0; color:#000">ACCEPT HANDSHAKE</button>
         </div>
     </div>
-    <div id="chat-section" class="section">
-        <div id="chat-box"></div>
-        <input type="text" id="msg-input" placeholder="Type message...">
-        <button class="btn-green" onclick="sendMessage()">Send</button>
-        <button class="btn-red" onclick="location.reload()">Wipe & Exit</button>
+
+    <div id="view-chat" class="hidden">
+        <div class="box">
+            <div id="msgs"></div>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="mi" placeholder="Message...">
+                <button onclick="sendMsg()" style="background:#0f0; width:80px">SEND</button>
+            </div>
+        </div>
     </div>
-</div>
+
 <script>
-    let peer, conn, myUsername;
-    function showSection(id) {
-        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
+    let p, c, my;
+    const v = (id) => {
+        ['view-login', 'view-conn', 'view-chat'].forEach(i => document.getElementById(i).classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    };
+
+    function start() {
+        my = document.getElementById('uid').value.trim().toLowerCase();
+        if(!my) return;
+        p = new Peer(my);
+        p.on('open', (id) => {
+            document.getElementById('myid').innerText = id;
+            v('view-conn');
+        });
+        p.on('connection', (conn) => {
+            c = conn;
+            setup();
+            document.getElementById('ntxt').innerText = "Incoming: " + c.peer;
+            document.getElementById('notif').classList.remove('hidden');
+        });
+        p.on('error', (err) => alert("PeerJS Error: " + err.type));
     }
-    function handleAuth() {
-        const u = document.getElementById('username').value.trim().toLowerCase();
-        const p = document.getElementById('password').value;
-        if(!u || !p) return alert("Enter details");
-        let saved = localStorage.getItem('gc_'+u);
-        if(!saved) localStorage.setItem('gc_'+u, p);
-        else if(saved !== p) return alert("Wrong password");
-        myUsername = u;
-        document.getElementById('my-name').innerText = u;
-        startPeer();
-        showSection('request-section');
+
+    function connect() {
+        const f = document.getElementById('fid').value.trim().toLowerCase();
+        c = p.connect(f, { reliable: true });
+        setup();
     }
-    function startPeer() {
-        peer = new Peer(myUsername);
-        peer.on('connection', (c) => {
-            conn = c;
-            document.getElementById('incoming-notif').style.display = 'block';
-            document.getElementById('request-text').innerText = "Request from: " + c.peer;
-            conn.on('data', (data) => {
-                if(data === "ACCEPTED_SIGNAL") setupChatUI();
-                else displayMsg(conn.peer, data);
+
+    function setup() {
+        c.on('open', () => {
+            c.on('data', (d) => {
+                if(d === "_SIGNAL_OK_") v('view-chat');
+                else ui(c.peer, d);
             });
         });
     }
-    function sendRequest() {
-        const friend = document.getElementById('friend-username').value.trim().toLowerCase();
-        conn = peer.connect(friend);
-        conn.on('open', () => {
-            alert("Request sent!");
-            conn.on('data', (data) => { if(data === "ACCEPTED_SIGNAL") setupChatUI(); });
-        });
-    }
-    function acceptRequest() {
-        if(conn) {
-            conn.send("ACCEPTED_SIGNAL");
-            setupChatUI();
+
+    function accept() {
+        if(c && c.open) {
+            c.send("_SIGNAL_OK_");
+            v('view-chat');
         }
     }
-    function setupChatUI() {
-        showSection('chat-section');
+
+    function sendMsg() {
+        const m = document.getElementById('mi').value;
+        if(!m || !c) return;
+        c.send(m);
+        ui("You", m);
+        document.getElementById('mi').value = "";
     }
-    function sendMessage() {
-        const m = document.getElementById('msg-input').value;
-        if(!m || !conn) return;
-        conn.send(m);
-        displayMsg("You", m);
-        document.getElementById('msg-input').value = "";
-    }
-    function displayMsg(user, msg) {
-        const box = document.getElementById('chat-box');
-        const cls = user === "You" ? "msg-me" : "msg-them";
-        box.innerHTML += `<div class="msg ${cls}"><b>${user}:</b> ${msg}</div>`;
-        box.scrollTop = box.scrollHeight;
+
+    function ui(u, m) {
+        const d = document.getElementById('msgs');
+        const cls = u === "You" ? "me" : "them";
+        d.innerHTML += `<div class="m ${cls}"><b>${u}:</b><br>${m}</div>`;
+        d.scrollTop = d.scrollHeight;
     }
 </script>
 </body>
