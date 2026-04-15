@@ -6,172 +6,93 @@
     <title>Ghost Chat | Golbazar</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { 
-            --bg: #000000; 
-            --card: #111111;
-            --primary: #0000FF; /* Blue */
-            --success: #00FF00; /* Green */
-            --danger: #FF0000;  /* Red */
-            --text: #ffffff; 
-        }
-
-        body { 
-            font-family: 'Segoe UI', Roboto, sans-serif; 
-            background: var(--bg); 
-            color: var(--text); 
-            margin: 0; 
-            display: flex; 
-            flex-direction: column;
-            align-items: center; 
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .app-container { 
-            width: 100%; 
-            max-width: 450px; 
-            height: 90vh;
-            background: var(--card);
-            border: 2px solid var(--primary); 
-            border-radius: 15px;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        h2 { text-align: center; color: var(--success); margin-top: 0; font-size: 1.5rem; }
-
-        input { 
-            width: 100%; padding: 15px; margin: 10px 0; 
-            background: #000; border: 1px solid var(--primary); 
-            color: white; border-radius: 8px; box-sizing: border-box;
-        }
-
-        button { 
-            width: 100%; padding: 15px; border: none; border-radius: 8px; 
-            font-weight: bold; cursor: pointer; text-transform: uppercase;
-            transition: 0.3s; margin-top: 5px;
-        }
-
+        :root { --bg: #000; --card: #111; --primary: #0000FF; --success: #00FF00; --danger: #FF0000; --text: #fff; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .app-container { width: 95%; max-width: 400px; height: 90vh; background: var(--card); border: 2px solid var(--primary); border-radius: 15px; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
+        input { width: 100%; padding: 12px; margin: 8px 0; background: #000; border: 1px solid var(--primary); color: white; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 5px; }
         .btn-green { background: var(--success); color: #000; }
         .btn-blue { background: var(--primary); color: #fff; }
         .btn-red { background: var(--danger); color: #fff; }
-
-        #chat-box { 
-            flex-grow: 1; border: 1px solid #222; 
-            background: #050505; overflow-y: auto; 
-            margin-bottom: 10px; padding: 15px; border-radius: 8px;
-        }
-
-        .msg { margin-bottom: 10px; line-height: 1.4; }
-        .msg-me { color: var(--success); }
-        .msg-them { color: var(--primary); }
-
-        /* Sections Toggle */
-        .section { display: none; width: 100%; height: 100%; flex-direction: column; }
+        #chat-box { flex-grow: 1; border: 1px solid #222; background: #050505; overflow-y: auto; margin-bottom: 10px; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; }
+        .msg { margin-bottom: 8px; word-wrap: break-word; }
+        .msg-me { color: var(--success); align-self: flex-end; }
+        .msg-them { color: var(--primary); align-self: flex-start; }
+        .section { display: none; flex-direction: column; height: 100%; }
         .active { display: flex; }
-
-        .status-bar { font-size: 0.8rem; text-align: center; margin-bottom: 10px; color: #777; }
     </style>
 </head>
 <body>
-
 <div class="app-container">
-    <h2>GHOST CHAT</h2>
-
+    <h2 style="text-align:center; color:var(--success)">GHOST CHAT</h2>
     <div id="auth-section" class="section active">
-        <div class="status-bar">SECURE PRIVATE LOGIN</div>
-        <input type="text" id="username" placeholder="Enter Username">
-        <input type="password" id="password" placeholder="Enter Password">
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
         <button class="btn-green" onclick="handleAuth()">Login / Register</button>
-        <p style="font-size: 11px; color: #555; text-align: center;">History is wiped on close.</p>
     </div>
-
     <div id="request-section" class="section">
-        <div class="status-bar">Welcome, <span id="my-name" style="color:var(--success)"></span></div>
-        <input type="text" id="friend-username" placeholder="Type Friend's Username">
-        <button class="btn-blue" onclick="sendRequest()">Send Chat Request</button>
-        
-        <div id="incoming-notif" style="display:none; margin-top: 20px; border: 1px dashed var(--success); padding: 10px;">
-            <p id="request-text" style="text-align:center"></p>
-            <button class="btn-green" onclick="acceptRequest()">Accept Request</button>
+        <p style="text-align:center">Logged in as: <span id="my-name" style="color:var(--success)"></span></p>
+        <input type="text" id="friend-username" placeholder="Friend's Username">
+        <button class="btn-blue" onclick="sendRequest()">Connect</button>
+        <div id="incoming-notif" style="display:none; margin-top:20px; border:1px dashed var(--success); padding:10px; text-align:center;">
+            <p id="request-text"></p>
+            <button class="btn-green" onclick="acceptRequest()">Accept & Chat</button>
         </div>
-        
-        <button class="btn-red" style="margin-top:auto;" onclick="location.reload()">Logout</button>
     </div>
-
     <div id="chat-section" class="section">
-        <div class="status-bar">Chatting with: <span id="other-name" style="color:var(--danger)"></span></div>
         <div id="chat-box"></div>
-        <input type="text" id="msg-input" placeholder="Say something...">
-        <button class="btn-green" onclick="sendMessage()">Send Message</button>
-        <button class="btn-red" onclick="location.reload()">End & Wipe Chat</button>
+        <input type="text" id="msg-input" placeholder="Type message...">
+        <button class="btn-green" onclick="sendMessage()">Send</button>
+        <button class="btn-red" onclick="location.reload()">Wipe & Exit</button>
     </div>
 </div>
-
 <script>
     let peer, conn, myUsername;
-
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
     function handleAuth() {
         const u = document.getElementById('username').value.trim().toLowerCase();
         const p = document.getElementById('password').value;
-        
-        if(!u || !p) return alert("Fill all fields");
-
-        let savedP = localStorage.getItem('gc_' + u);
-        if(!savedP) {
-            localStorage.setItem('gc_' + u, p);
-            alert("Account created for " + u);
-        } else if(savedP !== p) {
-            return alert("Wrong password!");
-        }
-
+        if(!u || !p) return alert("Enter details");
+        let saved = localStorage.getItem('gc_'+u);
+        if(!saved) localStorage.setItem('gc_'+u, p);
+        else if(saved !== p) return alert("Wrong password");
         myUsername = u;
         document.getElementById('my-name').innerText = u;
-        showSection('request-section');
         startPeer();
+        showSection('request-section');
     }
-
     function startPeer() {
         peer = new Peer(myUsername);
-        peer.on('open', (id) => console.log('PeerID:', id));
         peer.on('connection', (c) => {
             conn = c;
             document.getElementById('incoming-notif').style.display = 'block';
             document.getElementById('request-text').innerText = "Request from: " + c.peer;
-            
             conn.on('data', (data) => {
-                if(data === "ACCEPTED_CHAT") setupChatUI();
+                if(data === "ACCEPTED_SIGNAL") setupChatUI();
                 else displayMsg(conn.peer, data);
             });
         });
-        peer.on('error', (err) => alert("User offline or error: " + err.type));
     }
-
     function sendRequest() {
         const friend = document.getElementById('friend-username').value.trim().toLowerCase();
-        if(!friend) return;
         conn = peer.connect(friend);
         conn.on('open', () => {
-            alert("Request sent to " + friend);
-            // Wait for them to accept
-            conn.on('data', (data) => {
-                if(data === "ACCEPTED_CHAT") setupChatUI();
-            });
+            alert("Request sent!");
+            conn.on('data', (data) => { if(data === "ACCEPTED_SIGNAL") setupChatUI(); });
         });
     }
-
-function acceptRequest() { if(conn) { conn.send("ACCEPTED_CHAT"); setupChatUI(); } }
+    function acceptRequest() {
+        if(conn) {
+            conn.send("ACCEPTED_SIGNAL");
+            setupChatUI();
+        }
     }
-
     function setupChatUI() {
         showSection('chat-section');
-        document.getElementById('other-name').innerText = conn.peer;
     }
-
     function sendMessage() {
         const m = document.getElementById('msg-input').value;
         if(!m || !conn) return;
@@ -179,19 +100,12 @@ function acceptRequest() { if(conn) { conn.send("ACCEPTED_CHAT"); setupChatUI();
         displayMsg("You", m);
         document.getElementById('msg-input').value = "";
     }
-
     function displayMsg(user, msg) {
         const box = document.getElementById('chat-box');
         const cls = user === "You" ? "msg-me" : "msg-them";
         box.innerHTML += `<div class="msg ${cls}"><b>${user}:</b> ${msg}</div>`;
         box.scrollTop = box.scrollHeight;
     }
-
-    function showSection(id) {
-        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-    }
 </script>
-
 </body>
 </html>
