@@ -6,7 +6,7 @@
     <title>Ghost Chat Pro</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; --system: #64748b; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; --system: #64748b; --danger: #ef4444; }
         * { box-sizing: border-box; transition: all 0.2s; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { padding: 15px; background: var(--card); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
@@ -15,26 +15,30 @@
         .msg { max-width: 80%; padding: 10px 15px; border-radius: 18px; font-size: 14px; position: relative; }
         .sent { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 4px; }
         .received { align-self: flex-start; background: var(--card); border-bottom-left-radius: 4px; }
-        .time { font-size: 9px; opacity: 0.6; display: block; margin-top: 4px; }
-        .system { align-self: center; font-size: 10px; color: var(--system); margin: 5px; }
+        .system { align-self: center; font-size: 10px; color: var(--system); margin: 5px; text-align: center; }
         #input-area { padding: 15px; background: var(--card); display: flex; gap: 10px; border-top: 1px solid #334155; }
         #msg-input { flex: 1; background: #0f172a; border: 1px solid #334155; padding: 10px 15px; border-radius: 20px; color: white; outline: none; }
-        .btn-circle { cursor: pointer; width: 40px; height: 40px; border-radius: 50%; background: #334155; border: none; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .btn-circle { cursor: pointer; width: 40px; height: 40px; border-radius: 50%; background: #334155; border: none; display: flex; align-items: center; justify-content: center; font-size: 18px; color: white; }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
         .modal { background: var(--card); padding: 25px; border-radius: 15px; width: 90%; max-width: 350px; text-align: center; }
         .hidden { display: none; }
         img { max-width: 100%; border-radius: 10px; }
-        .lock-active { color: #10b981 !important; border: 1px solid #10b981 !important; }
+        .btn-call-active { background: var(--danger) !important; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
     </style>
 </head>
 <body>
     <header>
-        <button class="btn-circle" id="lock-btn" title="Toggle History Saving">🔓</button>
+        <button class="btn-circle" id="lock-btn">🔓</button>
         <div class="user-pill" id="display-name">@...</div>
-        <button class="btn-circle" id="open-conn">➕</button>
+        <div style="display:flex; gap:8px;">
+            <button class="btn-circle" id="call-btn">📞</button>
+            <button class="btn-circle" id="open-conn">➕</button>
+        </div>
     </header>
 
     <div id="chat-window"></div>
+    <audio id="remote-audio" autoplay></audio>
 
     <div id="input-area">
         <label class="btn-circle">📎<input type="file" id="file-input" class="hidden"></label>
@@ -44,9 +48,9 @@
 
     <div id="req-modal" class="modal-overlay">
         <div class="modal">
-            <h3>Link Request</h3>
+            <h3 id="modal-title">Link Request</h3>
             <p id="req-text"></p>
-            <div style="display:flex; gap:10px; margin-top:20px;">
+            <div style="display:flex; gap:10px; margin-top:20px;" id="modal-actions">
                 <button class="btn-circle" style="flex:1; border-radius:8px; background:var(--accent); color:white" id="btn-accept">Accept</button>
                 <button class="btn-circle" style="flex:1; border-radius:8px; background:#475569; color:white" id="btn-reject">Decline</button>
             </div>
@@ -57,25 +61,19 @@
         const chatWin = document.getElementById('chat-window');
         const msgInput = document.getElementById('msg-input');
         const lockBtn = document.getElementById('lock-btn');
+        const callBtn = document.getElementById('call-btn');
+        const remoteAudio = document.getElementById('remote-audio');
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         let isLocked = localStorage.getItem('ghost-lock') === 'true';
-        updateLockUI();
+        let localStream;
+        let currentCall;
 
+        // --- Core Functions ---
         function updateLockUI() {
             lockBtn.innerText = isLocked ? "🔒" : "🔓";
-            lockBtn.classList.toggle('lock-active', isLocked);
-            if (!isLocked) {
-                localStorage.removeItem('chat-history');
-            }
+            if (!isLocked) localStorage.removeItem('chat-history');
         }
-
-        lockBtn.onclick = () => {
-            isLocked = !isLocked;
-            localStorage.setItem('ghost-lock', isLocked);
-            updateLockUI();
-            display(isLocked ? "HISTORY SAVING ENABLED" : "HISTORY CLEARED & DISABLED", "system", false, null, false);
-        };
 
         function beep() {
             const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
@@ -83,6 +81,25 @@
             osc.start(); osc.stop(audioCtx.currentTime + 0.1);
         }
 
+        function display(content, type, isImg = false, time = null, save = true) {
+            const timestamp = time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const div = document.createElement('div');
+            div.className = `msg ${type}`;
+            if (isImg) { div.innerHTML = `<img src="${content}">`; }
+            else if (content.startsWith('data:')) { div.innerHTML = `<a href="${content}" download="file" style="color:var(--accent)">📁 Download File</a>`; }
+            else { div.innerText = content; }
+            const span = document.createElement('span'); span.style.fontSize='9px'; span.style.opacity='0.6'; span.innerText = ' ' + timestamp;
+            div.appendChild(span);
+            chatWin.appendChild(div);
+            chatWin.scrollTop = chatWin.scrollHeight;
+            if (save && isLocked && type !== 'system') {
+                const logs = JSON.parse(localStorage.getItem('chat-history') || "[]");
+                logs.push({content, type, isImg, time: timestamp});
+                localStorage.setItem('chat-history', JSON.stringify(logs.slice(-50)));
+            }
+        }
+
+        // --- Peer Setup ---
         let myUser = localStorage.getItem('ghost-user') || prompt("Username:") || "User"+Math.floor(Math.random()*99);
         localStorage.setItem('ghost-user', myUser);
         document.getElementById('display-name').innerText = "@" + myUser;
@@ -90,30 +107,75 @@
         const peer = new Peer(myUser);
         let conn;
 
+        updateLockUI();
         if (isLocked) {
             const history = JSON.parse(localStorage.getItem('chat-history') || "[]");
             history.forEach(h => display(h.content, h.type, h.isImg, h.time, false));
         }
 
-        function display(content, type, isImg = false, time = null, save = true) {
-            const timestamp = time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const div = document.createElement('div');
-            div.className = `msg ${type}`;
-            if (isImg) { const i = document.createElement('img'); i.src = content; div.appendChild(i); }
-            else if (content.startsWith('data:')) { div.innerHTML = `<a href="${content}" download="file" style="color:var(--accent)">📁 Download File</a>`; }
-            else { div.innerText = content; }
-            
-            const span = document.createElement('span'); span.className = 'time'; span.innerText = timestamp;
-            div.appendChild(span);
-            chatWin.appendChild(div);
-            chatWin.scrollTop = chatWin.scrollHeight;
-
-            if (save && isLocked && type !== 'system') {
-                const logs = JSON.parse(localStorage.getItem('chat-history') || "[]");
-                logs.push({content, type, isImg, time: timestamp});
-                localStorage.setItem('chat-history', JSON.stringify(logs.slice(-50)));
+        // --- Audio Logic ---
+        async function getMic() {
+            if (!localStream) {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
             }
+            return localStream;
         }
+
+        callBtn.onclick = async () => {
+            if (currentCall) {
+                currentCall.close();
+                endCall();
+                return;
+            }
+            if (!conn) { alert("Connect to a peer first!"); return; }
+            
+            display("STARTING AUDIO CALL...", "system");
+            const stream = await getMic();
+            currentCall = peer.call(conn.peer, stream);
+            handleCall(currentCall);
+        };
+
+        function handleCall(call) {
+            callBtn.classList.add('btn-call-active');
+            call.on('stream', stream => {
+                remoteAudio.srcObject = stream;
+            });
+            call.on('close', endCall);
+            currentCall = call;
+        }
+
+        function endCall() {
+            callBtn.classList.remove('btn-call-active');
+            display("CALL ENDED", "system");
+            currentCall = null;
+            remoteAudio.srcObject = null;
+        }
+
+        // --- Event Listeners ---
+        peer.on('open', id => display("SECURE NODE: " + id, 'system'));
+        
+        peer.on('call', async call => {
+            beep();
+            if (confirm("Incoming Audio Call from " + call.peer + ". Answer?")) {
+                const stream = await getMic();
+                call.answer(stream);
+                handleCall(call);
+            } else {
+                call.close();
+            }
+        });
+
+        peer.on('connection', incoming => {
+            beep();
+            document.getElementById('req-modal').style.display = 'flex';
+            document.getElementById('req-text').innerText = incoming.peer + " is linking.";
+            document.getElementById('btn-accept').onclick = () => {
+                conn = incoming;
+                setupConn();
+                document.getElementById('req-modal').style.display = 'none';
+            };
+            document.getElementById('btn-reject').onclick = () => { incoming.close(); document.getElementById('req-modal').style.display = 'none'; };
+        });
 
         function setupConn() {
             conn.on('open', () => { beep(); display("CONNECTED TO " + conn.peer, 'system'); });
@@ -124,35 +186,34 @@
             });
         }
 
-        peer.on('open', id => display("SECURE NODE: " + id, 'system'));
-        peer.on('connection', incoming => {
-            beep();
-            document.getElementById('req-text').innerText = incoming.peer + " is calling.";
-            document.getElementById('req-modal').style.display = 'flex';
-            document.getElementById('btn-accept').onclick = () => { conn = incoming; setupConn(); document.getElementById('req-modal').style.display = 'none'; };
-            document.getElementById('btn-reject').onclick = () => { incoming.close(); document.getElementById('req-modal').style.display = 'none'; };
-        });
+        lockBtn.onclick = () => {
+            isLocked = !isLocked;
+            localStorage.setItem('ghost-lock', isLocked);
+            updateLockUI();
+            display(isLocked ? "HISTORY SAVING ENABLED" : "HISTORY CLEARED", "system");
+        };
 
         document.getElementById('open-conn').onclick = () => {
-            const target = prompt("Target Username:");
-            if (target) { conn = peer.connect(target); setupConn(); }
+            const t = prompt("Target Username:");
+            if (t) { conn = peer.connect(t); setupConn(); }
         };
 
         document.getElementById('send-btn').onclick = () => {
-            const val = msgInput.value;
-            if(val && conn) { conn.send(val); display(val, 'sent'); msgInput.value = ''; }
+            if(msgInput.value && conn) { conn.send(msgInput.value); display(msgInput.value, 'sent'); msgInput.value = ''; }
         };
 
         document.getElementById('file-input').onchange = e => {
             const file = e.target.files[0];
             const reader = new FileReader();
             reader.onload = () => {
-                const isImg = file.type.startsWith('image/');
-                if(conn) { conn.send({type: 'file', data: reader.result, isImg}); display(reader.result, 'sent', isImg); }
+                if(conn) {
+                    const isImg = file.type.startsWith('image/');
+                    conn.send({type: 'file', data: reader.result, isImg});
+                    display(reader.result, 'sent', isImg);
+                }
             };
             reader.readAsDataURL(file);
         };
-        msgInput.onkeypress = (e) => { if(e.key === "Enter") document.getElementById('send-btn').click(); };
     </script>
 </body>
 </html>
