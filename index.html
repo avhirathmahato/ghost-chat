@@ -1,108 +1,76 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost Chat v2</title>
+    <title>Ghost Chat P2P</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; margin: 0; }
-        .box { border: 1px solid #00f; height: 90vh; display: flex; flex-direction: column; padding: 10px; box-sizing: border-box; }
-        #msgs { flex-grow: 1; overflow-y: auto; border: 1px solid #222; margin: 10px 0; display: flex; flex-direction: column; }
-        input { background: #000; border: 1px solid #00f; color: #0f0; padding: 12px; width: 100%; box-sizing: border-box; outline: none; }
-        button { padding: 12px; margin-top: 5px; cursor: pointer; width: 100%; border: none; font-weight: bold; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        header { padding: 15px; background: var(--card); text-align: center; font-weight: bold; border-bottom: 1px solid #334155; }
+        #chat-window { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-size: 14px; word-wrap: break-word; }
+        .sent { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 2px; }
+        .received { align-self: flex-start; background: var(--card); border-bottom-left-radius: 2px; }
+        img { max-width: 100%; border-radius: 10px; margin-top: 5px; }
+        #input-area { padding: 15px; background: var(--card); display: flex; gap: 10px; align-items: center; }
+        input { flex: 1; background: #334155; border: none; padding: 10px; border-radius: 20px; color: white; outline: none; }
         .hidden { display: none; }
-        .m { margin: 5px; padding: 8px; border-radius: 5px; max-width: 80%; word-wrap: break-word; }
-        .me { color: #fff; background: #00f; align-self: flex-end; }
-        .them { color: #000; background: #0f0; align-self: flex-start; }
     </style>
 </head>
 <body>
-    <div id="view-login">
-        <h3>GHOST_SYSTEM LOGIN</h3>
-        <input type="text" id="uid" placeholder="Enter Username">
-        <button onclick="start()" style="background:#00f; color:#fff">INITIALIZE</button>
+    <header>GHOST CHAT <span id="my-id" style="font-size:10px; color:gray;"></span></header>
+    <div id="chat-window"></div>
+    <div id="input-area">
+        <label style="cursor:pointer">🖼️<input type="file" id="img-input" class="hidden" accept="image/*"></label>
+        <input type="text" id="msg-input" placeholder="Type a message...">
+        <button id="send-btn" style="background:none; border:none; color:var(--accent); font-weight:bold; cursor:pointer;">SEND</button>
     </div>
-
-    <div id="view-conn" class="hidden">
-        <p>ID: <span id="myid" style="color:#fff"></span></p>
-        <input type="text" id="fid" placeholder="Target ID">
-        <button onclick="connect()" style="background:#00f; color:#fff">CONNECT</button>
-        <div id="notif" class="hidden" style="border:1px dashed #0f0; margin-top:20px; padding:10px;">
-            <p id="ntxt"></p>
-            <button onclick="accept()" style="background:#0f0; color:#000">ACCEPT HANDSHAKE</button>
-        </div>
-    </div>
-
-    <div id="view-chat" class="hidden">
-        <div class="box">
-            <div id="msgs"></div>
-            <div style="display:flex; gap:5px;">
-                <input type="text" id="mi" placeholder="Message...">
-                <button onclick="sendMsg()" style="background:#0f0; width:80px">SEND</button>
-            </div>
-        </div>
-    </div>
-
-<script>
-    let p, c, my;
-    const v = (id) => {
-        ['view-login', 'view-conn', 'view-chat'].forEach(i => document.getElementById(i).classList.add('hidden'));
-        document.getElementById(id).classList.remove('hidden');
-    };
-
-    function start() {
-        my = document.getElementById('uid').value.trim().toLowerCase();
-        if(!my) return;
-        p = new Peer(my);
-        p.on('open', (id) => {
-            document.getElementById('myid').innerText = id;
-            v('view-conn');
-        });
-        p.on('connection', (conn) => {
-            c = conn;
-            setup();
-            document.getElementById('ntxt').innerText = "Incoming: " + c.peer;
-            document.getElementById('notif').classList.remove('hidden');
-        });
-        p.on('error', (err) => alert("PeerJS Error: " + err.type));
-    }
-
-    function connect() {
-        const f = document.getElementById('fid').value.trim().toLowerCase();
-        c = p.connect(f, { reliable: true });
-        setup();
-    }
-
-    function setup() {
-        c.on('open', () => {
-            c.on('data', (d) => {
-                if(d === "_SIGNAL_OK_") v('view-chat');
-                else ui(c.peer, d);
-            });
-        });
-    }
-
-    function accept() {
-        if(c && c.open) {
-            c.send("_SIGNAL_OK_");
-            v('view-chat');
+    <script>
+        const peer = new Peer();
+        let conn;
+        const chatWin = document.getElementById('chat-window');
+        
+        peer.on('open', id => { document.getElementById('my-id').innerText = "ID: " + id; console.log('My ID:', id); });
+        
+        // Target ID via URL param for easy P2P connection
+        const targetId = new URLSearchParams(window.location.search).get('peer');
+        if (targetId) { 
+            setTimeout(() => { conn = peer.connect(targetId); setupConn(); }, 1000); 
         }
-    }
 
-    function sendMsg() {
-        const m = document.getElementById('mi').value;
-        if(!m || !c) return;
-        c.send(m);
-        ui("You", m);
-        document.getElementById('mi').value = "";
-    }
+        peer.on('connection', c => { conn = c; setupConn(); });
 
-    function ui(u, m) {
-        const d = document.getElementById('msgs');
-        const cls = u === "You" ? "me" : "them";
-        d.innerHTML += `<div class="m ${cls}"><b>${u}:</b><br>${m}</div>`;
-        d.scrollTop = d.scrollHeight;
-    }
-</script>
+        function setupConn() {
+            conn.on('data', data => {
+                if(data.type === 'img') display(data.data, 'received', true);
+                else display(data, 'received');
+            });
+        }
+
+        function display(content, type, isImg = false) {
+            const div = document.createElement('div');
+            div.className = `msg ${type}`;
+            if(isImg) { const i = document.createElement('img'); i.src = content; div.appendChild(i); }
+            else { div.innerText = content; }
+            chatWin.appendChild(div);
+            chatWin.scrollTop = chatWin.scrollHeight;
+        }
+
+        document.getElementById('send-btn').onclick = () => {
+            const msg = document.getElementById('msg-input').value;
+            if(msg && conn) { conn.send(msg); display(msg, 'sent'); document.getElementById('msg-input').value = ''; }
+        };
+
+        document.getElementById('img-input').onchange = e => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const base64 = reader.result;
+                if(conn) { conn.send({type:'img', data:base64}); display(base64, 'sent', true); }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        };
+    </script>
 </body>
 </html>
