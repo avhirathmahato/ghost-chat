@@ -164,11 +164,7 @@
         });
     }
 
-    function acceptRequest() {
-        if(conn) {
-            conn.send("ACCEPTED_CHAT");
-            setupChatUI();
-        }
+function acceptRequest() { if(conn) { conn.send("ACCEPTED_CHAT"); setupChatUI(); } }
     }
 
     function setupChatUI() {
