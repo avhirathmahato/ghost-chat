@@ -3,216 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost Chat Pro</title>
+    <title>Ghost Chat</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; --system: #64748b; --danger: #ef4444; }
-        * { box-sizing: border-box; transition: all 0.2s; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
         header { padding: 15px; background: var(--card); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
-        .user-pill { background: #334155; padding: 4px 12px; border-radius: 20px; font-size: 12px; color: var(--accent); font-weight: bold; }
-        #chat-window { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .msg { max-width: 80%; padding: 10px 15px; border-radius: 18px; font-size: 14px; position: relative; }
-        .sent { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 4px; }
-        .received { align-self: flex-start; background: var(--card); border-bottom-left-radius: 4px; }
-        .system { align-self: center; font-size: 10px; color: var(--system); margin: 5px; text-align: center; }
-        #input-area { padding: 15px; background: var(--card); display: flex; gap: 10px; border-top: 1px solid #334155; }
-        #msg-input { flex: 1; background: #0f172a; border: 1px solid #334155; padding: 10px 15px; border-radius: 20px; color: white; outline: none; }
-        .btn-circle { cursor: pointer; width: 40px; height: 40px; border-radius: 50%; background: #334155; border: none; display: flex; align-items: center; justify-content: center; font-size: 18px; color: white; }
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
-        .modal { background: var(--card); padding: 25px; border-radius: 15px; width: 90%; max-width: 350px; text-align: center; }
-        .hidden { display: none; }
+        #chat-window { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 80%; padding: 10px 15px; border-radius: 15px; font-size: 14px; word-wrap: break-word; }
+        .sent { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 2px; }
+        .received { align-self: flex-start; background: var(--card); border-bottom-left-radius: 2px; }
+        .system { align-self: center; color: #64748b; font-size: 11px; text-align: center; }
         img { max-width: 100%; border-radius: 10px; }
-        .btn-call-active { background: var(--danger) !important; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        #input-area { padding: 15px; background: var(--card); display: flex; gap: 10px; align-items: center; }
+        input { flex: 1; background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 20px; color: white; outline: none; }
+        button { background: none; border: none; color: var(--accent); font-weight: bold; cursor: pointer; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
     <header>
-        <button class="btn-circle" id="lock-btn">🔓</button>
-        <div class="user-pill" id="display-name">@...</div>
-        <div style="display:flex; gap:8px;">
-            <button class="btn-circle" id="call-btn">📞</button>
-            <button class="btn-circle" id="open-conn">➕</button>
-        </div>
+        <span id="display-name">GHOST CHAT</span>
+        <button id="conn-btn" style="background:#334155; padding:5px 10px; border-radius:5px; color:white;">CONNECT</button>
     </header>
 
     <div id="chat-window"></div>
-    <audio id="remote-audio" autoplay></audio>
 
     <div id="input-area">
-        <label class="btn-circle">📎<input type="file" id="file-input" class="hidden"></label>
-        <input type="text" id="msg-input" placeholder="Message...">
-        <button id="send-btn" class="btn-circle" style="background:var(--accent)">🚀</button>
-    </div>
-
-    <div id="req-modal" class="modal-overlay">
-        <div class="modal">
-            <h3 id="modal-title">Link Request</h3>
-            <p id="req-text"></p>
-            <div style="display:flex; gap:10px; margin-top:20px;" id="modal-actions">
-                <button class="btn-circle" style="flex:1; border-radius:8px; background:var(--accent); color:white" id="btn-accept">Accept</button>
-                <button class="btn-circle" style="flex:1; border-radius:8px; background:#475569; color:white" id="btn-reject">Decline</button>
-            </div>
-        </div>
+        <label style="cursor:pointer">🖼️<input type="file" id="img-input" class="hidden" accept="image/*"></label>
+        <input type="text" id="msg-input" placeholder="Type a message...">
+        <button id="send-btn">SEND</button>
     </div>
 
     <script>
-        const chatWin = document.getElementById('chat-window');
-        const msgInput = document.getElementById('msg-input');
-        const lockBtn = document.getElementById('lock-btn');
-        const callBtn = document.getElementById('call-btn');
-        const remoteAudio = document.getElementById('remote-audio');
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        let isLocked = localStorage.getItem('ghost-lock') === 'true';
-        let localStream;
-        let currentCall;
-
-        // --- Core Functions ---
-        function updateLockUI() {
-            lockBtn.innerText = isLocked ? "🔒" : "🔓";
-            if (!isLocked) localStorage.removeItem('chat-history');
-        }
-
-        function beep() {
-            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-        }
-
-        function display(content, type, isImg = false, time = null, save = true) {
-            const timestamp = time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const div = document.createElement('div');
-            div.className = `msg ${type}`;
-            if (isImg) { div.innerHTML = `<img src="${content}">`; }
-            else if (content.startsWith('data:')) { div.innerHTML = `<a href="${content}" download="file" style="color:var(--accent)">📁 Download File</a>`; }
-            else { div.innerText = content; }
-            const span = document.createElement('span'); span.style.fontSize='9px'; span.style.opacity='0.6'; span.innerText = ' ' + timestamp;
-            div.appendChild(span);
-            chatWin.appendChild(div);
-            chatWin.scrollTop = chatWin.scrollHeight;
-            if (save && isLocked && type !== 'system') {
-                const logs = JSON.parse(localStorage.getItem('chat-history') || "[]");
-                logs.push({content, type, isImg, time: timestamp});
-                localStorage.setItem('chat-history', JSON.stringify(logs.slice(-50)));
-            }
-        }
-
-        // --- Peer Setup ---
-        let myUser = localStorage.getItem('ghost-user') || prompt("Username:") || "User"+Math.floor(Math.random()*99);
+        // Simple Username
+        let myUser = localStorage.getItem('ghost-user') || prompt("Username:") || "User" + Math.floor(Math.random()*99);
         localStorage.setItem('ghost-user', myUser);
         document.getElementById('display-name').innerText = "@" + myUser;
 
         const peer = new Peer(myUser);
         let conn;
+        const chatWin = document.getElementById('chat-window');
 
-        updateLockUI();
-        if (isLocked) {
-            const history = JSON.parse(localStorage.getItem('chat-history') || "[]");
-            history.forEach(h => display(h.content, h.type, h.isImg, h.time, false));
+        function display(content, type, isImg = false) {
+            const div = document.createElement('div');
+            div.className = `msg ${type}`;
+            if(isImg) { div.innerHTML = `<img src="${content}">`; }
+            else { div.innerText = content; }
+            chatWin.appendChild(div);
+            chatWin.scrollTop = chatWin.scrollHeight;
         }
 
-        // --- Audio Logic ---
-        async function getMic() {
-            if (!localStream) {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-            }
-            return localStream;
-        }
+        peer.on('open', id => display("ONLINE AS: " + id, "system"));
 
-        callBtn.onclick = async () => {
-            if (currentCall) {
-                currentCall.close();
-                endCall();
-                return;
-            }
-            if (!conn) { alert("Connect to a peer first!"); return; }
-            
-            display("STARTING AUDIO CALL...", "system");
-            const stream = await getMic();
-            currentCall = peer.call(conn.peer, stream);
-            handleCall(currentCall);
-        };
-
-        function handleCall(call) {
-            callBtn.classList.add('btn-call-active');
-            call.on('stream', stream => {
-                remoteAudio.srcObject = stream;
-            });
-            call.on('close', endCall);
-            currentCall = call;
-        }
-
-        function endCall() {
-            callBtn.classList.remove('btn-call-active');
-            display("CALL ENDED", "system");
-            currentCall = null;
-            remoteAudio.srcObject = null;
-        }
-
-        // --- Event Listeners ---
-        peer.on('open', id => display("SECURE NODE: " + id, 'system'));
-        
-        peer.on('call', async call => {
-            beep();
-            if (confirm("Incoming Audio Call from " + call.peer + ". Answer?")) {
-                const stream = await getMic();
-                call.answer(stream);
-                handleCall(call);
-            } else {
-                call.close();
-            }
-        });
-
-        peer.on('connection', incoming => {
-            beep();
-            document.getElementById('req-modal').style.display = 'flex';
-            document.getElementById('req-text').innerText = incoming.peer + " is linking.";
-            document.getElementById('btn-accept').onclick = () => {
-                conn = incoming;
+        // Direct Pairing Logic
+        peer.on('connection', c => {
+            if(confirm("Connect with " + c.peer + "?")) {
+                conn = c;
                 setupConn();
-                document.getElementById('req-modal').style.display = 'none';
-            };
-            document.getElementById('btn-reject').onclick = () => { incoming.close(); document.getElementById('req-modal').style.display = 'none'; };
+            } else {
+                c.close();
+            }
         });
+
+        document.getElementById('conn-btn').onclick = () => {
+            const t = prompt("Target Username:");
+            if(t) {
+                conn = peer.connect(t);
+                setupConn();
+            }
+        };
 
         function setupConn() {
-            conn.on('open', () => { beep(); display("CONNECTED TO " + conn.peer, 'system'); });
+            conn.on('open', () => display("CONNECTED TO " + conn.peer, "system"));
             conn.on('data', data => {
-                beep();
-                if(data.type === 'file') display(data.data, 'received', data.isImg);
+                if(data.type === 'img') display(data.data, 'received', true);
                 else display(data, 'received');
             });
+            conn.on('error', () => display("CONNECTION ERROR", "system"));
         }
 
-        lockBtn.onclick = () => {
-            isLocked = !isLocked;
-            localStorage.setItem('ghost-lock', isLocked);
-            updateLockUI();
-            display(isLocked ? "HISTORY SAVING ENABLED" : "HISTORY CLEARED", "system");
-        };
-
-        document.getElementById('open-conn').onclick = () => {
-            const t = prompt("Target Username:");
-            if (t) { conn = peer.connect(t); setupConn(); }
-        };
-
         document.getElementById('send-btn').onclick = () => {
-            if(msgInput.value && conn) { conn.send(msgInput.value); display(msgInput.value, 'sent'); msgInput.value = ''; }
+            const msg = document.getElementById('msg-input').value;
+            if(msg && conn) {
+                conn.send(msg);
+                display(msg, 'sent');
+                document.getElementById('msg-input').value = '';
+            }
         };
 
-        document.getElementById('file-input').onchange = e => {
-            const file = e.target.files[0];
+        document.getElementById('img-input').onchange = e => {
             const reader = new FileReader();
             reader.onload = () => {
                 if(conn) {
-                    const isImg = file.type.startsWith('image/');
-                    conn.send({type: 'file', data: reader.result, isImg});
-                    display(reader.result, 'sent', isImg);
+                    conn.send({type:'img', data:reader.result});
+                    display(reader.result, 'sent', true);
                 }
             };
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(e.target.files[0]);
         };
     </script>
 </body>
