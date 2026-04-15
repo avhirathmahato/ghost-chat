@@ -20,7 +20,7 @@
     </style>
 </head>
 <body>
-    <header>GHOST CHAT <span id="my-id" style="font-size:10px; color:gray;"></span></header>
+    <header style="display:flex; justify-content:space-between; align-items:center;"><span>GHOST CHAT</span><button id="conn-btn" style="background:#334155; color:white; border:none; padding:5px 10px; border-radius:5px; font-size:12px; cursor:pointer;">CONNECT</button></header><div id="my-id" style="text-align:center; font-size:10px; color:gray; padding:5px; background:#1e293b;">Initializing...</div>
     <div id="chat-window"></div>
     <div id="input-area">
         <label style="cursor:pointer">🖼️<input type="file" id="img-input" class="hidden" accept="image/*"></label>
@@ -41,6 +41,7 @@
         }
 
         peer.on('connection', c => { conn = c; setupConn(); });
+        document.getElementById('conn-btn').onclick = () => { const id = prompt('Enter Peer ID to Connect:'); if(id) { conn = peer.connect(id); setupConn(); } };
 
         function setupConn() {
             conn.on('data', data => {
