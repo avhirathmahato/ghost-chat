@@ -13,7 +13,7 @@
         .msg { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-size: 14px; }
         .sent { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 2px; }
         .received { align-self: flex-start; background: var(--card); border-bottom-left-radius: 2px; }
-        .system { align-self: center; background: none; color: #64748b; font-size: 11px; text-transform: uppercase; }
+        .system { align-self: center; background: none; color: #64748b; font-size: 11px; text-align: center; }
         img { max-width: 100%; border-radius: 10px; }
         #input-area { padding: 15px; background: var(--card); display: flex; gap: 10px; align-items: center; }
         input { flex: 1; background: #334155; border: none; padding: 10px; border-radius: 20px; color: white; outline: none; }
@@ -34,44 +34,16 @@
     </div>
 
     <script>
-        // 1. Permanent Username Logic
         let myUser = localStorage.getItem('ghost-user');
         if (!myUser) {
-            myUser = prompt("Choose a permanent username:") || "User" + Math.floor(Math.random()*1000);
+            myUser = prompt("Choose your permanent username:") || "User" + Math.floor(Math.random()*100);
             localStorage.setItem('ghost-user', myUser);
         }
         document.getElementById('display-name').innerText = myUser;
 
-        const peer = new Peer(myUser); // Peer ID is now your username
+        const peer = new Peer(myUser);
         let conn;
         const chatWin = document.getElementById('chat-window');
-
-        peer.on('open', id => display("Your ID is: " + id, 'system'));
-        peer.on('error', err => display("Error: " + err.type, 'system'));
-
-        // 2. Incoming Connection Request
-        peer.on('connection', c => {
-            conn = c;
-            setupConn();
-            display("Connected to: " + conn.peer, 'system');
-        });
-
-        document.getElementById('conn-btn').onclick = () => {
-            const target = prompt("Enter username to connect to:");
-            if (target) {
-                display("Requesting connection to " + target + "...", 'system');
-                conn = peer.connect(target);
-                setupConn();
-            }
-        };
-
-        function setupConn() {
-            conn.on('open', () => display("Connection Established!", 'system'));
-            conn.on('data', data => {
-                if(data.type === 'img') display(data.data, 'received', true);
-                else display(data, 'received');
-            });
-        }
 
         function display(content, type, isImg = false) {
             const div = document.createElement('div');
@@ -82,6 +54,38 @@
             chatWin.scrollTop = chatWin.scrollHeight;
         }
 
+        function setupConn() {
+            conn.on('open', () => display("CONNECTED TO " + conn.peer, 'system'));
+            conn.on('data', data => {
+                if(data.type === 'img') display(data.data, 'received', true);
+                else display(data, 'received');
+            });
+            conn.on('close', () => display("CONNECTION CLOSED", 'system'));
+        }
+
+        peer.on('open', id => display("ONLINE AS: " + id, 'system'));
+
+        // REQUEST HANDLER (THE FIX)
+        peer.on('connection', incomingConn => {
+            const accept = confirm("Incoming request from: " + incomingConn.peer + ". Accept?");
+            if (accept) {
+                conn = incomingConn;
+                setupConn();
+            } else {
+                incomingConn.close();
+                display("REJECTED CONNECTION FROM " + incomingConn.peer, 'system');
+            }
+        });
+
+        document.getElementById('conn-btn').onclick = () => {
+            const target = prompt("Connect to username:");
+            if (target) { 
+                display("SENDING REQUEST TO " + target + "...", 'system');
+                conn = peer.connect(target); 
+                setupConn(); 
+            }
+        };
+
         document.getElementById('send-btn').onclick = () => {
             const msg = document.getElementById('msg-input').value;
             if(msg && conn) { conn.send(msg); display(msg, 'sent'); document.getElementById('msg-input').value = ''; }
@@ -90,8 +94,7 @@
         document.getElementById('img-input').onchange = e => {
             const reader = new FileReader();
             reader.onload = () => {
-                const base64 = reader.result;
-                if(conn) { conn.send({type:'img', data:base64}); display(base64, 'sent', true); }
+                if(conn) { conn.send({type:'img', data:reader.result}); display(reader.result, 'sent', true); }
             };
             reader.readAsDataURL(e.target.files[0]);
         };
